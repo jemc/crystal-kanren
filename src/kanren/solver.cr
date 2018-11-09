@@ -1,0 +1,52 @@
+class Kanren::Solver(T)
+  # TODO: Use Iterator(State(T)) instead, when crystal-lang#7044 is fixed?
+  @states : Array(State(T))
+  
+  def initialize(@states = [State(T).new])
+  end
+  
+  def solutions
+    @states
+  end
+  
+  def query_var
+    Var.new
+  end
+  
+  def fresh(count)
+    vars = count.times.map { Var.new }.to_a
+    yield vars
+    # TODO: hygiene - forget fresh vars from state after block?
+    nil
+  end
+  
+  def branch(count)
+    branches = count.times.map { self.class.new(@states) }.to_a
+    yield branches
+    # TODO: consider cases where some confused soul modified this main solver?
+    @states = branches.flat_map(&.solutions)
+    nil
+  end
+  
+  def member(var : Var, *values)
+    @states = values.flat_map do |value|
+      @states.flat_map { |s| s.unify_value(var, value) }
+    end
+    nil
+  end
+  
+  def join(a : Var, b : Var)
+    @states = @states.flat_map { |s| s.unify_vars(a, b) }
+    nil
+  end
+  
+  def join(a : T, b : T)
+    @states = @states.flat_map { |s| s.unify_values(a, b) }
+    nil
+  end
+  
+  def join(var : Var, value : T)
+    @states = @states.flat_map { |s| s.unify_value(var, value) }
+    nil
+  end
+end
