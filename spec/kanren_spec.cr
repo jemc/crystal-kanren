@@ -116,4 +116,63 @@ describe Kanren do
     k.solutions[0][q].should eq "Hello"
     k.solutions[1][q].should eq "World"
   end
+  
+  it "solves for limited recursion within a finite domain" do
+    # For a given "a" and "b" in a finite domain (zero through four),
+    # require "b" to be the natural number immediately following "a".
+    succ = ->(k : Kanren::Solver(String), a : Kanren::Var, b : Kanren::Var) do
+      k.branch(4) do |(k0, k1, k2, k3)|
+        k0.tap do |k|
+          k.join(a, "zero")
+          k.join(b, "one")
+        end
+        
+        k1.tap do |k|
+          k.join(a, "one")
+          k.join(b, "two")
+        end
+        
+        k2.tap do |k|
+          k.join(a, "two")
+          k.join(b, "three")
+        end
+        
+        k3.tap do |k|
+          k.join(a, "three")
+          k.join(b, "four")
+        end
+      end
+    end
+    
+    # For a given "a" and "b" in a finite domain (zero through four),
+    # require "b" to be one of the natural numbers that is less than "a",
+    # using finite recursion over this function as one of the two branches.
+    lt = ->(k : Kanren::Solver(String), a : Kanren::Var, b : Kanren::Var) { }
+    lt = ->(k : Kanren::Solver(String), a : Kanren::Var, b : Kanren::Var) do
+      k.branch(2) do |(k0, k1)|
+        k0.tap do |k|
+          succ.call(k, a, b)
+        end
+        
+        k1.tap do |k|
+          k.fresh(1) do |(c)|
+            succ.call(k, a, c)
+            lt.call(k, c, b)
+          end
+        end
+      end
+    end
+    
+    # Find the non-negative natural numbers that are less than three.
+    k = Kanren::Solver(String).new
+    q = k.query_var
+    
+    k.fresh(1) do |(a)|
+      k.join(a, "three")
+      lt.call(k, q, a)
+    end
+    
+    k.solutions.size.should eq 3
+    k.solutions.map(&.[q]).sort.should eq ["one", "two", "zero"]
+  end
 end
